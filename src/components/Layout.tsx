@@ -3,6 +3,8 @@ import { useAuth } from 'react-oidc-context';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { appRoutes } from '../constants';
 import { usePermissions } from '../hooks/usePermissions';
+import { useNotifications } from '../hooks/useNotifications';
+import { NotificationToaster } from './NotificationToaster';
 
 interface LayoutProps {
   children: ReactNode;
@@ -13,6 +15,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { username, clientRoles, groups, hasPermission } = usePermissions();
+  const { notifications, isConnected, permission, requestPermission, removeNotification } = useNotifications();
 
   const canViewMovies = hasPermission('movie-permission-read');
   const canViewUsers = hasPermission('user-permission-read');
@@ -114,6 +117,29 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </div>
                 </div>
 
+                {permission === 'default' && (
+                  <button
+                    type="button"
+                    onClick={() => void requestPermission()}
+                    style={{
+                      padding: '0.35rem 0.65rem',
+                      backgroundColor: '#2b6cb0',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem'
+                    }}
+                    title="Permitir notificaciones del sistema operativo"
+                  >
+                    🔔 Activar avisos
+                  </button>
+                )}
+
                 <button
                   onClick={handleLogout}
                   style={{
@@ -190,6 +216,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <main style={{ maxWidth: '1100px', margin: '0 auto', padding: '1.5rem 1.25rem' }}>
         {children}
       </main>
+
+      {/* Real-time SSE Notifications */}
+      <NotificationToaster
+        notifications={notifications}
+        onDismiss={removeNotification}
+        isConnected={isConnected}
+      />
     </div>
   );
 };
