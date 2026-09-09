@@ -83,3 +83,6 @@ Este proyecto utiliza varias librerías para mejorar la funcionalidad y la efici
 https://www.youtube.com/watch?v=5B8tqWFyZWQ
 
 https://medium.com/@andreyka26_/how-to-implement-react-client-for-oauth-server-openiddict-8f8dea6ed9c2
+  
+
+  
