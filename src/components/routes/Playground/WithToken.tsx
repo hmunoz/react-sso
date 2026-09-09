@@ -10,7 +10,7 @@ export const WithToken: React.FC = () => {
     // simulate slow network
     await sleep(500);
 
-    const url = import.meta.env.VITE_API_BASE_URL + '/api/tests';
+    const url = import.meta.env.VITE_API_BASE_URL + '/movies';
 
     const response = await fetch(url, {
       headers: {
