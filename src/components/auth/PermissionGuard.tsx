@@ -3,23 +3,20 @@ import { usePermissions } from '../../hooks/usePermissions';
 
 interface PermissionGuardProps {
   permission?: string;
-  role?: string;
   fallback?: ReactNode;
   children: ReactNode;
 }
 
 export const PermissionGuard: React.FC<PermissionGuardProps> = ({
   permission,
-  role,
   fallback,
   children
 }) => {
-  const { hasPermission, hasRole } = usePermissions();
+  const { hasPermission } = usePermissions();
 
   const permissionGranted = permission ? hasPermission(permission) : true;
-  const roleGranted = role ? hasRole(role) : true;
 
-  if (!permissionGranted || !roleGranted) {
+  if (!permissionGranted) {
     if (fallback) {
       return <>{fallback}</>;
     }
@@ -40,9 +37,6 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
           No contás con las autorizaciones necesarias para visualizar este módulo.
           {permission && (
             <> Se requiere el permiso: <code style={{ backgroundColor: '#fed7d7', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>{permission}</code>.</>
-          )}
-          {role && (
-            <> Se requiere el rol: <code style={{ backgroundColor: '#fed7d7', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>{role}</code>.</>
           )}
         </p>
       </div>

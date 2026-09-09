@@ -12,7 +12,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const auth = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { username, clientRoles, realmRoles, hasPermission } = usePermissions();
+  const { username, clientRoles, groups, hasPermission } = usePermissions();
 
   const canViewMovies = hasPermission('movie-permission-read');
   const canViewUsers = hasPermission('user-permission-read');
@@ -96,19 +96,19 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     {username}
                   </div>
                   <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'flex-end', marginTop: '0.15rem' }}>
-                    {realmRoles.map((role) => (
+                    {groups.map((group) => (
                       <span
-                        key={role}
+                        key={group}
                         style={{
                           fontSize: '0.65rem',
                           padding: '0.1rem 0.35rem',
                           borderRadius: '4px',
-                          backgroundColor: role === 'ROLE_ADMIN' ? '#c53030' : '#2b6cb0',
+                          backgroundColor: group === 'administrador' ? '#c53030' : '#2b6cb0',
                           color: 'white',
                           fontWeight: 700
                         }}
                       >
-                        {role}
+                        {group}
                       </span>
                     ))}
                   </div>
@@ -150,7 +150,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        {/* Roles/Permissions Sub-bar for Debugging / Educational transparency */}
+        {/* Permissions sub-bar for debugging / educational transparency.
+            The chips above show group membership (identity); these show the
+            fine-grained permissions that actually decide access. */}
         {auth.isAuthenticated && (
           <div style={{
             backgroundColor: '#2d3748',

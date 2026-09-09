@@ -8,9 +8,6 @@ export interface TokenPayload {
   given_name?: string;
   family_name?: string;
   groups?: string[];
-  realm_access?: {
-    roles: string[];
-  };
   resource_access?: {
     [client: string]: {
       roles: string[];
@@ -47,26 +44,24 @@ export function usePermissions() {
     return tokenData?.resource_access?.[clientId]?.roles || [];
   }, [tokenData]);
 
-  const realmRoles = useMemo(() => {
-    return tokenData?.realm_access?.roles || [];
-  }, [tokenData]);
-
   const groups = useMemo(() => {
     return tokenData?.groups || [];
   }, [tokenData]);
 
+  /** Authorization: what the user is allowed to do. Always decide access with this. */
   const hasPermission = (permission: string) => {
     return clientRoles.includes(permission);
   };
 
-  const hasRole = (role: string) => {
-    return realmRoles.includes(role);
+  /** Identity: which part of the organization the user belongs to. Never use it to grant access. */
+  const hasGroup = (group: string) => {
+    return groups.includes(group);
   };
 
   const username = tokenData?.preferred_username || auth.user?.profile?.preferred_username || 'Usuario';
   const fullName = tokenData?.name || auth.user?.profile?.name || username;
   const email = tokenData?.email || auth.user?.profile?.email || '';
-  const isAdmin = hasRole('ROLE_ADMIN') || groups.includes('administrador') || hasPermission('user-permission-read');
+  const isAdmin = hasGroup('administrador');
 
   return {
     isAuthenticated: auth.isAuthenticated,
@@ -76,10 +71,9 @@ export function usePermissions() {
     fullName,
     email,
     clientRoles,
-    realmRoles,
     groups,
     hasPermission,
-    hasRole,
+    hasGroup,
     isAdmin
   };
 }
