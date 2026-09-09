@@ -1,101 +1,193 @@
-import styled from '@emotion/styled';
-import type { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import { useAuth } from 'react-oidc-context';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { appRoutes } from '../constants';
-
-const Container = styled.div`
-  margin-left: auto;
-  margin-right: auto;
-  padding-left: 0.5rem;
-  padding-right: 0.5rem;
-  max-width: 1200px;
-`;
-
-const NavBar = styled.nav`
-  display: flex;
-  align-items: center;
-  padding-top: 1rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid;
-`;
-
-const NavTitle = styled.div`
-  flex-grow: 1;
-  font-weight: bold;
-  font-style: italic;
-`;
-
-const NavButtons = styled.div`
-  display: flex;
-  gap: 1rem;
-`;
-
-const NavButton = styled.button`
-  border-radius: 0.25rem;
-  padding: 0.375rem 0.75rem;
-`;
-
-const Main = styled.main`
-  margin-bottom: 2rem;
-`;
-
-type NavItemType = {
-  text: string;
-  /** Setting this flag to `true` means that only auth'd users should see the nav item */
-  protected: boolean;
-  action: () => void;
-};
+import { usePermissions } from '../hooks/usePermissions';
 
 interface LayoutProps {
   children: ReactNode;
 }
 
-export const Layout: React.FC<LayoutProps> = (props) => {
-  const { children } = props;
+export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const auth = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { username, clientRoles, realmRoles, hasPermission } = usePermissions();
 
-  const navItems: NavItemType[] = [
+  const canViewMovies = hasPermission('movie-permission-read');
+  const canViewUsers = hasPermission('user-permission-read');
+
+  const navItems = [
     {
-      text: 'Home',
-      protected: true,
-      action: () => {
-        navigate(appRoutes.home);
-      }
+      label: '🎬 Películas',
+      path: appRoutes.movies,
+      visible: canViewMovies
     },
     {
-      text: 'Playground',
-      protected: true,
-      action: () => {
-        navigate(appRoutes.playground);
-      }
-    },
-    {
-      text: 'Logout',
-      protected: false,
-      action: () => {
-        void auth.signoutRedirect();
-      }
+      label: '👥 Gestión Usuarios',
+      path: appRoutes.users,
+      visible: canViewUsers
     }
-  ].filter((item) => {
-    return auth.isAuthenticated || !item.protected;
-  });
+  ].filter((item) => item.visible);
+
+  const handleLogout = () => {
+    void auth.signoutRedirect();
+  };
 
   return (
-    <Container>
-      <NavBar>
-        <NavTitle>Example App</NavTitle>
-        <NavButtons>
-          {navItems.map((item) => (
-            <NavButton key={item.text} onClick={item.action}>
-              {item.text}
-            </NavButton>
-          ))}
-        </NavButtons>
-      </NavBar>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f7fafc', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {/* Top Navbar */}
+      <header style={{
+        backgroundColor: '#1a202c',
+        color: 'white',
+        borderBottom: '1px solid #2d3748',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+      }}>
+        <div style={{
+          maxWidth: '1100px',
+          margin: '0 auto',
+          padding: '0.85rem 1.25rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          {/* Brand */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }} onClick={() => navigate(appRoutes.movies)}>
+            <span style={{ fontSize: '1.4rem' }}>📼</span>
+            <span style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.025em' }}>VideoClub SSO</span>
+          </div>
 
-      <Main>{children}</Main>
-    </Container>
+          {/* Nav Tabs */}
+          {auth.isAuthenticated && (
+            <nav style={{ display: 'flex', gap: '0.5rem' }}>
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => navigate(item.path)}
+                    style={{
+                      padding: '0.45rem 0.9rem',
+                      borderRadius: '6px',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      border: 'none',
+                      backgroundColor: isActive ? '#3182ce' : 'transparent',
+                      color: isActive ? 'white' : '#cbd5e0',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
+
+          {/* User Profile & Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {auth.isAuthenticated ? (
+              <>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#edf2f7' }}>
+                    {username}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'flex-end', marginTop: '0.15rem' }}>
+                    {realmRoles.map((role) => (
+                      <span
+                        key={role}
+                        style={{
+                          fontSize: '0.65rem',
+                          padding: '0.1rem 0.35rem',
+                          borderRadius: '4px',
+                          backgroundColor: role === 'ROLE_ADMIN' ? '#c53030' : '#2b6cb0',
+                          color: 'white',
+                          fontWeight: 700
+                        }}
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    padding: '0.4rem 0.8rem',
+                    backgroundColor: '#4a5568',
+                    color: '#e2e8f0',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer'
+                  }}
+                  title="Cerrar sesión en Keycloak"
+                >
+                  Salir
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => void auth.signinRedirect()}
+                style={{
+                  padding: '0.4rem 0.9rem',
+                  backgroundColor: '#3182ce',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Iniciar Sesión
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Roles/Permissions Sub-bar for Debugging / Educational transparency */}
+        {auth.isAuthenticated && (
+          <div style={{
+            backgroundColor: '#2d3748',
+            padding: '0.35rem 1.25rem',
+            fontSize: '0.75rem',
+            color: '#a0aec0',
+            borderTop: '1px solid #4a5568'
+          }}>
+            <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 600, color: '#e2e8f0' }}>Permisos activos (videoclub-frontend):</span>
+              {clientRoles.length > 0 ? (
+                clientRoles.map((perm) => (
+                  <span
+                    key={perm}
+                    style={{
+                      backgroundColor: '#1a202c',
+                      color: '#63b3ed',
+                      padding: '0.1rem 0.4rem',
+                      borderRadius: '3px',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    {perm}
+                  </span>
+                ))
+              ) : (
+                <span style={{ fontStyle: 'italic' }}>Sin permisos de cliente asignados</span>
+              )}
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Main Content */}
+      <main style={{ maxWidth: '1100px', margin: '0 auto', padding: '1.5rem 1.25rem' }}>
+        {children}
+      </main>
+    </div>
   );
 };

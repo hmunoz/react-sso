@@ -1,5 +1,7 @@
 export const appRoutes = {
   home: '/',
-  notFound: '*',
-  playground: '/playground'
+  movies: '/movies',
+  users: '/users',
+  playground: '/playground',
+  notFound: '*'
 } as const;
