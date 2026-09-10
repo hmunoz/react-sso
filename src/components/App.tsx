@@ -1,17 +1,34 @@
-import { Route, Routes } from 'react-router-dom';
+import React from 'react';
+import { Route, Routes, Navigate } from 'react-router-dom';
 import { appRoutes } from '../constants';
-import { Home } from './routes/Home';
-import { NotFound } from './routes/NotFound';
+import { PermissionGuard } from './auth/PermissionGuard';
+import { MoviesView } from './routes/MoviesView';
+import { UsersView } from './routes/UsersView';
 import { Playground } from './routes/Playground/Playground';
+import { NotFound } from './routes/NotFound';
 
 export const App: React.FC = () => {
   return (
     <Routes>
-      <Route path={appRoutes.home}>
-        <Route index={true} element={<Home />} />
-        <Route path={appRoutes.notFound} element={<NotFound />} />
-        <Route path={appRoutes.playground} element={<Playground />} />
-      </Route>
+      <Route path={appRoutes.home} element={<Navigate to={appRoutes.movies} replace />} />
+      <Route
+        path={appRoutes.movies}
+        element={
+          <PermissionGuard permission="movie-permission-read">
+            <MoviesView />
+          </PermissionGuard>
+        }
+      />
+      <Route
+        path={appRoutes.users}
+        element={
+          <PermissionGuard permission="user-permission-read">
+            <UsersView />
+          </PermissionGuard>
+        }
+      />
+      <Route path={appRoutes.playground} element={<Playground />} />
+      <Route path={appRoutes.notFound} element={<NotFound />} />
     </Routes>
   );
 };

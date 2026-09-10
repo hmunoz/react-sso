@@ -2,20 +2,26 @@ import { QueryClient } from '@tanstack/react-query';
 import { UserManager, WebStorageStateStore } from 'oidc-client-ts';
 
 export const userManager = new UserManager({
-  authority: import.meta.env.VITE_AUTHORITY,
-  // biome-ignore lint/style/useNamingConvention: Expected
-  client_id: import.meta.env.VITE_CLIENT_ID,
-  // biome-ignore lint/style/useNamingConvention: Expected
-  redirect_uri: `${window.location.origin}${window.location.pathname}`,
-  // biome-ignore lint/style/useNamingConvention: Expected
-  post_logout_redirect_uri: window.location.origin,
+  authority: import.meta.env.VITE_AUTHORITY || 'http://localhost:9091/realms/videoclub',
+  client_id: import.meta.env.VITE_CLIENT_ID || 'videoclub-frontend',
+  redirect_uri: window.location.origin + '/',
+  post_logout_redirect_uri: window.location.origin + '/',
+  response_type: 'code',
+  scope: 'openid profile email videoclub',
   userStore: new WebStorageStateStore({ store: window.sessionStorage }),
-  monitorSession: true, // this allows cross tab login/logout detection
-  scope: 'openid profile email'
+  monitorSession: true,
+  automaticSilentRenew: true
 });
 
 export const onSigninCallback = () => {
   window.history.replaceState({}, document.title, window.location.pathname);
 };
 
-export const queryClient = new QueryClient();
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false
+    }
+  }
+});
