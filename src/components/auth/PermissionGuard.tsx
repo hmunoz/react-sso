@@ -3,20 +3,28 @@ import { usePermissions } from '../../hooks/usePermissions';
 
 interface PermissionGuardProps {
   permission?: string;
+  /**
+   * Restricts the route to members of the `administrador` group.
+   * Group membership is identity, not authorization: use it only for presentation,
+   * and always keep a `permission` check as the predicate that mirrors the backend.
+   */
+  adminOnly?: boolean;
   fallback?: ReactNode;
   children: ReactNode;
 }
 
 export const PermissionGuard: React.FC<PermissionGuardProps> = ({
   permission,
+  adminOnly = false,
   fallback,
   children
 }) => {
-  const { hasPermission } = usePermissions();
+  const { hasPermission, isAdmin } = usePermissions();
 
   const permissionGranted = permission ? hasPermission(permission) : true;
+  const groupGranted = adminOnly ? isAdmin : true;
 
-  if (!permissionGranted) {
+  if (!permissionGranted || !groupGranted) {
     if (fallback) {
       return <>{fallback}</>;
     }
@@ -37,6 +45,9 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
           No contás con las autorizaciones necesarias para visualizar este módulo.
           {permission && (
             <> Se requiere el permiso: <code style={{ backgroundColor: '#fed7d7', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>{permission}</code>.</>
+          )}
+          {adminOnly && (
+            <> Se requiere pertenecer al grupo: <code style={{ backgroundColor: '#fed7d7', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>administrador</code>.</>
           )}
         </p>
       </div>

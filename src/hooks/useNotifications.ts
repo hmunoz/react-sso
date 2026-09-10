@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 
 export interface NotificationItem {
@@ -13,6 +14,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 
 export function useNotifications() {
   const auth = useAuth();
+  const queryClient = useQueryClient();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>(
@@ -158,6 +160,10 @@ export function useNotifications() {
         const rep = payload.representation || {};
         const username = rep.username || payload.resourcePath || 'usuario';
 
+        // The Socio replica is fed by these same events on the backend. Invalidating here
+        // keeps the members table fresh without polling.
+        void queryClient.invalidateQueries({ queryKey: ['socios'] });
+
         if (op === 'CREATE') {
           addNotification(
             '⚙️ Usuario Creado por Admin',
@@ -185,7 +191,7 @@ export function useNotifications() {
       eventSource.close();
       setIsConnected(false);
     };
-  }, [auth.isAuthenticated, auth.user?.access_token, addNotification]);
+  }, [auth.isAuthenticated, auth.user?.access_token, addNotification, queryClient]);
 
   return {
     notifications,
