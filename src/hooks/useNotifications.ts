@@ -135,6 +135,10 @@ export function useNotifications() {
               'success'
             );
             break;
+          case 'REFRESH_TOKEN':
+          case 'CODE_TO_TOKEN':
+            // Eventos internos de ciclo de vida de tokens OIDC, se ignoran para no saturar la UI
+            break;
           default:
             addNotification(
               `🔔 Evento de Autenticación: ${type}`,
