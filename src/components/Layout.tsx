@@ -19,6 +19,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const canViewMovies = hasPermission('movie-permission-read');
   const canViewUsers = hasPermission('user-permission-read');
+  const canViewSocios = hasPermission('socio-permission-read');
 
   const navItems = [
     {
@@ -30,6 +31,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       label: '👥 Gestión Usuarios',
       path: appRoutes.users,
       visible: canViewUsers
+    },
+    {
+      label: '💳 Socios',
+      path: appRoutes.socios,
+      visible: canViewSocios
     }
   ].filter((item) => item.visible);
 

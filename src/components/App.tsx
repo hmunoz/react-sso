@@ -3,6 +3,7 @@ import { Route, Routes, Navigate } from 'react-router-dom';
 import { appRoutes } from '../constants';
 import { PermissionGuard } from './auth/PermissionGuard';
 import { MoviesView } from './routes/MoviesView';
+import { SociosView } from './routes/SociosView';
 import { UsersView } from './routes/UsersView';
 import { Playground } from './routes/Playground/Playground';
 import { NotFound } from './routes/NotFound';
@@ -24,6 +25,14 @@ export const App: React.FC = () => {
         element={
           <PermissionGuard permission="user-permission-read">
             <UsersView />
+          </PermissionGuard>
+        }
+      />
+      <Route
+        path={appRoutes.socios}
+        element={
+          <PermissionGuard permission="socio-permission-read">
+            <SociosView />
           </PermissionGuard>
         }
       />
