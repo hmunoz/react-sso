@@ -9,6 +9,7 @@ interface ChatMessage {
   text: string;
   timestamp: string;
   tools?: string[];
+  toolsExecuted?: string[];
 }
 
 export const AgentChatView: React.FC = () => {
@@ -70,7 +71,8 @@ export const AgentChatView: React.FC = () => {
         sender: 'agent',
         text: res.response,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        tools: res.toolsAvailable
+        tools: res.toolsAvailable,
+        toolsExecuted: res.toolsExecuted
       };
 
       setMessages((prev) => [...prev, agentMsg]);
@@ -254,6 +256,39 @@ export const AgentChatView: React.FC = () => {
                 fontSize: '0.92rem'
               }}>
                 <div>{formatText(msg.text)}</div>
+
+                {!isUser && msg.toolsExecuted && msg.toolsExecuted.length > 0 && (
+                  <div style={{
+                    marginTop: '0.65rem',
+                    padding: '0.4rem 0.65rem',
+                    backgroundColor: '#f0fff4',
+                    border: '1px solid #c6f6d5',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontSize: '0.75rem',
+                    color: '#22543d'
+                  }}>
+                    <span>🛠️ <strong>Herramientas ejecutadas:</strong></span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                      {msg.toolsExecuted.map((tool) => (
+                        <code key={tool} style={{
+                          backgroundColor: '#e6fffa',
+                          border: '1px solid #b2f5ea',
+                          borderRadius: '4px',
+                          padding: '0.1rem 0.4rem',
+                          fontFamily: 'monospace',
+                          fontSize: '0.72rem',
+                          color: '#234e52',
+                          fontWeight: 600
+                        }}>
+                          {tool}
+                        </code>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div style={{
                   display: 'flex',
