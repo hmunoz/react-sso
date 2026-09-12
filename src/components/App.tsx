@@ -5,6 +5,7 @@ import { PermissionGuard } from './auth/PermissionGuard';
 import { MoviesView } from './routes/MoviesView';
 import { SociosView } from './routes/SociosView';
 import { UsersView } from './routes/UsersView';
+import { AgentChatView } from './routes/AgentChatView';
 import { Playground } from './routes/Playground/Playground';
 import { NotFound } from './routes/NotFound';
 
@@ -36,6 +37,7 @@ export const App: React.FC = () => {
           </PermissionGuard>
         }
       />
+      <Route path={appRoutes.agent} element={<AgentChatView />} />
       <Route path={appRoutes.playground} element={<Playground />} />
       <Route path={appRoutes.notFound} element={<NotFound />} />
     </Routes>

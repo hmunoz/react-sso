@@ -36,6 +36,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       label: '💳 Socios',
       path: appRoutes.socios,
       visible: canViewSocios
+    },
+    {
+      label: '🤖 Asistente AI',
+      path: appRoutes.agent,
+      visible: true
     }
   ].filter((item) => item.visible);
 
