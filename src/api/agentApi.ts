@@ -2,6 +2,7 @@ import { apiRequest } from './client';
 
 export interface ChatResponse {
   prompt: string;
+  conversationId?: string;
   response: string;
   agentsInvoked?: string[];
   toolsExecuted?: string[];
@@ -13,13 +14,22 @@ export interface AgentHealthResponse {
   agent: string;
 }
 
-export async function sendAgentPrompt(prompt: string, token?: string): Promise<ChatResponse> {
+export async function sendAgentPrompt(prompt: string, token?: string, conversationId?: string): Promise<ChatResponse> {
   return apiRequest<ChatResponse>(
     '/api/agent/chat',
     {
       method: 'POST',
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt, conversationId })
     },
+    token
+  );
+}
+
+export async function clearAgentMemory(token?: string, conversationId?: string): Promise<{ status: string; message: string }> {
+  const query = conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : '';
+  return apiRequest<{ status: string; message: string }>(
+    `/api/agent/chat/memory${query}`,
+    { method: 'DELETE' },
     token
   );
 }

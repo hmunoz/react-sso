@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { usePermissions } from '../../hooks/usePermissions';
-import { sendAgentPrompt, getAgentHealth } from '../../api/agentApi';
+import { sendAgentPrompt, getAgentHealth, clearAgentMemory } from '../../api/agentApi';
 
 interface ChatMessage {
   id: string;
@@ -91,6 +91,24 @@ export const AgentChatView: React.FC = () => {
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResetChat = async () => {
+    if (isLoading) return;
+    try {
+      await clearAgentMemory(auth.user?.access_token);
+      setMessages([
+        {
+          id: `welcome-${Date.now()}`,
+          sender: 'agent',
+          text: `¡Hola ${username}! Se ha reiniciado la memoria de la conversación.\n\n¿En qué te puedo ayudar hoy?`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          tools: ['get_movie', 'list_movies', 'search_movies', 'get_socio', 'list_socios']
+        }
+      ]);
+    } catch (e) {
+      console.error('Error clearing chat memory', e);
     }
   };
 
@@ -191,6 +209,27 @@ export const AgentChatView: React.FC = () => {
               </span>
             ))}
           </div>
+          <button
+            onClick={() => void handleResetChat()}
+            disabled={isLoading}
+            title="Reiniciar historial y memoria del chat"
+            style={{
+              marginTop: '0.35rem',
+              padding: '0.2rem 0.55rem',
+              backgroundColor: '#edf2f7',
+              color: '#4a5568',
+              border: '1px solid #cbd5e0',
+              borderRadius: '6px',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.25rem'
+            }}
+          >
+            🔄 <span>Nueva conversación</span>
+          </button>
         </div>
       </div>
 
