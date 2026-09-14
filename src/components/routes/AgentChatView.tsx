@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { usePermissions } from '../../hooks/usePermissions';
 import { sendAgentPrompt, getAgentHealth, clearAgentMemory, getAgentTools } from '../../api/agentApi';
+import { MovieGrid } from '../chat/MovieGrid';
+import { type Movie } from '../../api/moviesApi';
 
 interface ChatMessage {
   id: string;
@@ -153,8 +155,79 @@ export const AgentChatView: React.FC = () => {
     '¿Quiénes son los socios registrados en el videoclub?'
   ];
 
+  const parseGenerativeContent = (rawText: string): { cleanedText: string; movies?: Movie[] } => {
+    const moviesFenceRegex = /```(?:json:movies|json)\s*([\s\S]*?)\s*```/;
+    const match = rawText.match(moviesFenceRegex);
+
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].title !== undefined) {
+          let textWithoutFence = rawText.replace(moviesFenceRegex, '').trim();
+
+          // Strip redundant movie detail bullets if movie cards are rendered
+          textWithoutFence = textWithoutFence
+            .split('\n')
+            .filter((line) => {
+              const trimmed = line.trim();
+              // Remove redundant movie attribute bullets
+              if (/^[-*•]\s*(\*\*)?(título|title|género|genre|precio|price|imagen|image|id|código)\b/i.test(trimmed)) {
+                return false;
+              }
+              // Remove standalone or leading markdown image lines
+              if (/^[-*•]?\s*!?\[.*?\]\(.*?\)$/.test(trimmed)) {
+                return false;
+              }
+              return true;
+            })
+            .join('\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
+          return {
+            cleanedText: textWithoutFence,
+            movies: parsed as Movie[],
+          };
+        }
+      } catch {
+        // Fallback: leave as plain text
+      }
+    }
+
+    return { cleanedText: rawText };
+  };
+
   const formatText = (text: string) => {
     return text.split('\n').map((line, idx) => {
+      // Fallback: render markdown images if present anywhere in line
+      const imgMatch = line.match(/!\[(.*?)\]\((.*?)\)/);
+      if (imgMatch) {
+        const alt = imgMatch[1];
+        const src = imgMatch[2];
+        const textBefore = line.slice(0, imgMatch.index).replace(/^[-*•]\s*(\*\*)?.*?:?(\*\*)?\s*/, '').trim();
+        return (
+          <span key={idx} style={{ display: 'block', margin: '0.45rem 0' }}>
+            {textBefore && <span style={{ display: 'block', marginBottom: '0.25rem' }}>{textBefore}</span>}
+            <img
+              src={src}
+              alt={alt}
+              style={{
+                maxWidth: '180px',
+                maxHeight: '260px',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                display: 'block',
+                objectFit: 'cover',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.08)'
+              }}
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          </span>
+        );
+      }
+
       // Bold rendering **text**
       const parts = line.split(/(\*\*.*?\*\*)/g);
       return (
@@ -286,6 +359,12 @@ export const AgentChatView: React.FC = () => {
         )}
         {messages.map((msg) => {
           const isUser = msg.sender === 'user';
+          const { cleanedText, movies } = isUser
+            ? { cleanedText: msg.text, movies: undefined }
+            : parseGenerativeContent(msg.text);
+
+          const hasMovies = !isUser && Boolean(movies && movies.length > 0);
+
           return (
             <div
               key={msg.id}
@@ -314,7 +393,7 @@ export const AgentChatView: React.FC = () => {
               )}
 
               <div style={{
-                maxWidth: '78%',
+                maxWidth: hasMovies ? '88%' : '78%',
                 backgroundColor: isUser ? '#3182ce' : '#ffffff',
                 color: isUser ? '#ffffff' : '#2d3748',
                 padding: '0.85rem 1.15rem',
@@ -324,7 +403,11 @@ export const AgentChatView: React.FC = () => {
                 lineHeight: 1.5,
                 fontSize: '0.92rem'
               }}>
-                <div>{formatText(msg.text)}</div>
+                {cleanedText && <div>{formatText(cleanedText)}</div>}
+
+                {hasMovies && movies && (
+                  <MovieGrid movies={movies} />
+                )}
 
                 {!isUser && msg.agentsInvoked && msg.agentsInvoked.length > 0 && (
                   <div style={{
