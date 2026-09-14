@@ -8,6 +8,7 @@ interface ChatMessage {
   sender: 'user' | 'agent';
   text: string;
   timestamp: string;
+  agentsInvoked?: string[];
   tools?: string[];
   toolsExecuted?: string[];
 }
@@ -71,6 +72,7 @@ export const AgentChatView: React.FC = () => {
         sender: 'agent',
         text: res.response,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        agentsInvoked: res.agentsInvoked,
         tools: res.toolsAvailable,
         toolsExecuted: res.toolsExecuted
       };
@@ -256,6 +258,37 @@ export const AgentChatView: React.FC = () => {
                 fontSize: '0.92rem'
               }}>
                 <div>{formatText(msg.text)}</div>
+
+                {!isUser && msg.agentsInvoked && msg.agentsInvoked.length > 0 && (
+                  <div style={{
+                    marginTop: '0.65rem',
+                    padding: '0.35rem 0.65rem',
+                    backgroundColor: '#ebf8ff',
+                    border: '1px solid #bee3f8',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontSize: '0.75rem',
+                    color: '#2b6cb0'
+                  }}>
+                    <span>🤖 <strong>Sub-agentes convocados:</strong></span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                      {msg.agentsInvoked.map((agent) => (
+                        <span key={agent} style={{
+                          backgroundColor: '#e6f6ff',
+                          border: '1px solid #90cdf4',
+                          borderRadius: '4px',
+                          padding: '0.1rem 0.4rem',
+                          fontSize: '0.72rem',
+                          fontWeight: 600
+                        }}>
+                          {agent}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {!isUser && msg.toolsExecuted && msg.toolsExecuted.length > 0 && (
                   <div style={{

@@ -3,6 +3,7 @@ import { apiRequest } from './client';
 export interface ChatResponse {
   prompt: string;
   response: string;
+  agentsInvoked?: string[];
   toolsExecuted?: string[];
   toolsAvailable: string[];
 }
