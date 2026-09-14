@@ -6,6 +6,7 @@ export interface ChatResponse {
   response: string;
   agentsInvoked?: string[];
   toolsExecuted?: string[];
+  toolsDenied?: string[];
   toolsAvailable: string[];
   fromMemory?: boolean;
 }

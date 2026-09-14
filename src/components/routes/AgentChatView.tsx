@@ -13,6 +13,7 @@ interface ChatMessage {
   agentsInvoked?: string[];
   tools?: string[];
   toolsExecuted?: string[];
+  toolsDenied?: string[];
   fromMemory?: boolean;
 }
 
@@ -104,6 +105,7 @@ export const AgentChatView: React.FC = () => {
         agentsInvoked: res.agentsInvoked,
         tools: res.toolsAvailable,
         toolsExecuted: res.toolsExecuted,
+        toolsDenied: res.toolsDenied,
         fromMemory: res.fromMemory
       };
 
@@ -440,38 +442,85 @@ export const AgentChatView: React.FC = () => {
                   </div>
                 )}
 
-                {!isUser && msg.toolsExecuted && msg.toolsExecuted.length > 0 && (
-                  <div style={{
-                    marginTop: '0.65rem',
-                    padding: '0.4rem 0.65rem',
-                    backgroundColor: '#f0fff4',
-                    border: '1px solid #c6f6d5',
-                    borderRadius: '6px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    fontSize: '0.75rem',
-                    color: '#22543d'
-                  }}>
-                    <span>🛠️ <strong>Herramientas ejecutadas:</strong></span>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                      {msg.toolsExecuted.map((tool) => (
-                        <code key={tool} style={{
-                          backgroundColor: '#e6fffa',
-                          border: '1px solid #b2f5ea',
-                          borderRadius: '4px',
-                          padding: '0.1rem 0.4rem',
-                          fontFamily: 'monospace',
-                          fontSize: '0.72rem',
-                          color: '#234e52',
-                          fontWeight: 600
-                        }}>
-                          {tool}
-                        </code>
-                      ))}
+                {!isUser && msg.toolsExecuted && msg.toolsExecuted.length > 0 && (() => {
+                  const hasDenied = Boolean(msg.toolsDenied && msg.toolsDenied.length > 0);
+                  const allDenied = hasDenied && msg.toolsExecuted.every((t) => msg.toolsDenied?.includes(t));
+
+                  const boxBg = allDenied ? '#fff5f5' : hasDenied ? '#fffaf0' : '#f0fff4';
+                  const boxBorder = allDenied ? '#feb2b2' : hasDenied ? '#feebc8' : '#c6f6d5';
+                  const boxColor = allDenied ? '#9b2c2c' : hasDenied ? '#744210' : '#22543d';
+
+                  return (
+                    <div style={{
+                      marginTop: '0.65rem',
+                      padding: '0.4rem 0.65rem',
+                      backgroundColor: boxBg,
+                      border: `1px solid ${boxBorder}`,
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      fontSize: '0.75rem',
+                      color: boxColor
+                    }}>
+                      <span>
+                        {allDenied ? '🔒' : hasDenied ? '⚠️' : '🛠️'}{' '}
+                        <strong>
+                          {allDenied
+                            ? 'Herramientas denegadas (sin permisos):'
+                            : hasDenied
+                            ? 'Herramientas invocadas:'
+                            : 'Herramientas ejecutadas:'}
+                        </strong>
+                      </span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        {msg.toolsExecuted.map((tool) => {
+                          const isDenied = msg.toolsDenied?.includes(tool);
+                          return (
+                            <span
+                              key={tool}
+                              title={
+                                isDenied
+                                  ? 'Ejecución denegada por Keycloak (@PreAuthorize): tu usuario no posee el rol requerido para esta herramienta'
+                                  : 'Herramienta ejecutada con éxito'
+                              }
+                              style={{
+                                backgroundColor: isDenied ? '#fff5f5' : '#e6fffa',
+                                border: isDenied ? '1px solid #feb2b2' : '1px solid #b2f5ea',
+                                borderRadius: '4px',
+                                padding: '0.1rem 0.45rem',
+                                fontFamily: 'monospace',
+                                fontSize: '0.72rem',
+                                color: isDenied ? '#c53030' : '#234e52',
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem'
+                              }}
+                            >
+                              <span>{isDenied ? '🚫' : '✓'}</span>
+                              <span style={{ textDecoration: isDenied ? 'line-through' : 'none', opacity: isDenied ? 0.9 : 1 }}>
+                                {tool}
+                              </span>
+                              {isDenied && (
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  backgroundColor: '#fed7d7',
+                                  color: '#9b2c2c',
+                                  padding: '0 0.3rem',
+                                  borderRadius: '3px',
+                                  fontWeight: 700
+                                }}>
+                                  sin permiso
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {!isUser && msg.fromMemory && (
                   <div style={{
