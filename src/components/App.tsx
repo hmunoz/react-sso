@@ -3,6 +3,7 @@ import { Route, Routes, Navigate } from 'react-router-dom';
 import { appRoutes } from '../constants';
 import { PermissionGuard } from './auth/PermissionGuard';
 import { MoviesView } from './routes/MoviesView';
+import { MovieDetailView } from './routes/MovieDetailView';
 import { SociosView } from './routes/SociosView';
 import { UsersView } from './routes/UsersView';
 import { AgentChatView } from './routes/AgentChatView';
@@ -18,6 +19,14 @@ export const App: React.FC = () => {
         element={
           <PermissionGuard permission="movie-permission-read">
             <MoviesView />
+          </PermissionGuard>
+        }
+      />
+      <Route
+        path={appRoutes.movieDetail}
+        element={
+          <PermissionGuard permission="movie-permission-read">
+            <MovieDetailView />
           </PermissionGuard>
         }
       />
