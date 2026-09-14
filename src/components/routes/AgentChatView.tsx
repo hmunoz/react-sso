@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { usePermissions } from '../../hooks/usePermissions';
-import { sendAgentPrompt, getAgentHealth, clearAgentMemory, getAgentTools } from '../../api/agentApi';
+import { sendAgentPrompt, getAgentHealth, clearAgentMemory, getAgentTools, moviesFrom } from '../../api/agentApi';
 import { MovieGrid } from '../chat/MovieGrid';
 import { type Movie } from '../../api/moviesApi';
 
@@ -15,6 +15,7 @@ interface ChatMessage {
   toolsExecuted?: string[];
   toolsDenied?: string[];
   fromMemory?: boolean;
+  movies?: Movie[];
 }
 
 export const AgentChatView: React.FC = () => {
@@ -106,7 +107,8 @@ export const AgentChatView: React.FC = () => {
         tools: res.toolsAvailable,
         toolsExecuted: res.toolsExecuted,
         toolsDenied: res.toolsDenied,
-        fromMemory: res.fromMemory
+        fromMemory: res.fromMemory,
+        movies: moviesFrom(res.artifacts)
       };
 
       if (res.toolsAvailable && res.toolsAvailable.length > 0) {
@@ -156,48 +158,6 @@ export const AgentChatView: React.FC = () => {
     '¿Tienen alguna película de Matrix en el catálogo?',
     '¿Quiénes son los socios registrados en el videoclub?'
   ];
-
-  const parseGenerativeContent = (rawText: string): { cleanedText: string; movies?: Movie[] } => {
-    const moviesFenceRegex = /```(?:json:movies|json)\s*([\s\S]*?)\s*```/;
-    const match = rawText.match(moviesFenceRegex);
-
-    if (match) {
-      try {
-        const parsed = JSON.parse(match[1]);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].title !== undefined) {
-          let textWithoutFence = rawText.replace(moviesFenceRegex, '').trim();
-
-          // Strip redundant movie detail bullets if movie cards are rendered
-          textWithoutFence = textWithoutFence
-            .split('\n')
-            .filter((line) => {
-              const trimmed = line.trim();
-              // Remove redundant movie attribute bullets
-              if (/^[-*•]\s*(\*\*)?(título|title|género|genre|precio|price|imagen|image|id|código)\b/i.test(trimmed)) {
-                return false;
-              }
-              // Remove standalone or leading markdown image lines
-              if (/^[-*•]?\s*!?\[.*?\]\(.*?\)$/.test(trimmed)) {
-                return false;
-              }
-              return true;
-            })
-            .join('\n')
-            .replace(/\n{3,}/g, '\n\n')
-            .trim();
-
-          return {
-            cleanedText: textWithoutFence,
-            movies: parsed as Movie[],
-          };
-        }
-      } catch {
-        // Fallback: leave as plain text
-      }
-    }
-
-    return { cleanedText: rawText };
-  };
 
   const formatText = (text: string) => {
     return text.split('\n').map((line, idx) => {
@@ -361,10 +321,10 @@ export const AgentChatView: React.FC = () => {
         )}
         {messages.map((msg) => {
           const isUser = msg.sender === 'user';
-          const { cleanedText, movies } = isUser
-            ? { cleanedText: msg.text, movies: undefined }
-            : parseGenerativeContent(msg.text);
-
+          // The agent already stripped every structured block server-side, so the text is safe to
+          // render as-is and the cards come from a typed field.
+          const cleanedText = msg.text;
+          const movies = isUser ? undefined : msg.movies;
           const hasMovies = !isUser && Boolean(movies && movies.length > 0);
 
           return (

@@ -1,4 +1,28 @@
 import { apiRequest } from './client';
+import { type Movie } from './moviesApi';
+
+/**
+ * Structured data the agent extracted and validated server-side, shipped beside the prose instead
+ * of embedded in it. `kind` is the discriminator; a new domain is a new kind, not a new regex.
+ */
+export interface UiArtifact {
+  kind: string;
+  items: unknown[];
+}
+
+export interface MoviesArtifact extends UiArtifact {
+  kind: 'movies';
+  items: Movie[];
+}
+
+export function isMoviesArtifact(artifact: UiArtifact): artifact is MoviesArtifact {
+  return artifact.kind === 'movies';
+}
+
+/** Collects the movie cards of a turn, across however many blocks the agent produced. */
+export function moviesFrom(artifacts?: UiArtifact[]): Movie[] {
+  return (artifacts ?? []).filter(isMoviesArtifact).flatMap((a) => a.items);
+}
 
 export interface ChatResponse {
   prompt: string;
@@ -9,6 +33,7 @@ export interface ChatResponse {
   toolsDenied?: string[];
   toolsAvailable: string[];
   fromMemory?: boolean;
+  artifacts?: UiArtifact[];
 }
 
 export interface AgentHealthResponse {
