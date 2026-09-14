@@ -16,16 +16,18 @@ interface ChatMessage {
 export const AgentChatView: React.FC = () => {
   const auth = useAuth();
   const { username, groups } = usePermissions();
+  const displayName = auth.user?.profile?.name || username;
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    {
-      id: 'welcome-1',
-      sender: 'agent',
-      text: `¡Hola ${username}! Soy el Asistente de Inteligencia Artificial del VideoClub UNRN.\n\nEstoy conectado mediante Model Context Protocol (MCP) a nuestro backend seguro con Keycloak. Puedo consultar el catálogo de películas y el padrón de socios según los permisos de tu cuenta.\n\n¿En qué te puedo ayudar hoy?`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      tools: ['get_movie', 'list_movies', 'search_movies', 'get_socio', 'list_socios']
-    }
-  ]);
+  const createWelcomeMessage = (name: string): ChatMessage => ({
+    id: `welcome-${Date.now()}`,
+    sender: 'agent',
+    text: `¡Hola ${name}! Soy el Asistente de Inteligencia Artificial del VideoClub UNRN.\n\nEstoy conectado mediante Model Context Protocol (MCP) a nuestro backend seguro con Keycloak. Puedo consultar el catálogo de películas y el padrón de socios según los permisos de tu cuenta.\n\n¿En qué te puedo ayudar hoy?`,
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    tools: ['get_movie', 'list_movies', 'search_movies', 'get_socio', 'list_socios']
+  });
+
+  const [conversationId, setConversationId] = useState<string>(() => `session-${Date.now()}`);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [createWelcomeMessage(displayName)]);
 
   const [inputPrompt, setInputPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -65,7 +67,10 @@ export const AgentChatView: React.FC = () => {
 
     try {
       const token = auth.user?.access_token;
-      const res = await sendAgentPrompt(prompt, token);
+      const res = await sendAgentPrompt(prompt, token, conversationId);
+      if (res.conversationId && res.conversationId !== conversationId) {
+        setConversationId(res.conversationId);
+      }
 
       const agentMsg: ChatMessage = {
         id: `agent-${Date.now()}`,
@@ -97,19 +102,15 @@ export const AgentChatView: React.FC = () => {
   const handleResetChat = async () => {
     if (isLoading) return;
     try {
-      await clearAgentMemory(auth.user?.access_token);
-      setMessages([
-        {
-          id: `welcome-${Date.now()}`,
-          sender: 'agent',
-          text: `¡Hola ${username}! Se ha reiniciado la memoria de la conversación.\n\n¿En qué te puedo ayudar hoy?`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          tools: ['get_movie', 'list_movies', 'search_movies', 'get_socio', 'list_socios']
-        }
-      ]);
+      if (conversationId) {
+        await clearAgentMemory(auth.user?.access_token, conversationId);
+      }
     } catch (e) {
-      console.error('Error clearing chat memory', e);
+      console.warn('Error clearing previous chat memory', e);
     }
+    const newSession = `session-${Date.now()}`;
+    setConversationId(newSession);
+    setMessages([createWelcomeMessage(displayName)]);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
