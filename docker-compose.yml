@@ -1,0 +1,31 @@
+# Entorno de DESARROLLO (el que toma `docker compose` por defecto).
+#
+# `name` fija el nombre del proyecto y aísla redes y contenedores del entorno productivo.
+name: videoclub-frontend-dev
+
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            # Clavado, no parametrizado: las lineas de abajo (bind mount y
+            # command: npm run dev) solo funcionan sobre la etapa dev con Node.js.
+            target: dev
+        container_name: videoclub-frontend-app-dev
+        volumes:
+            # Bind mount para reflejar cambios de codigo en vivo en el contenedor
+            - .:/app
+            # Volumen anonimo para preservar los node_modules compilados dentro del
+            # contenedor y evitar que el directorio local del host los sobreescriba
+            - /app/node_modules
+        # Inyecta el comando de arranque con servidor de desarrollo Vite y HMR
+        command: npm run dev
+        ports:
+            - ${PORT}:${PORT}
+        environment:
+            PORT: ${PORT}
+            APP_VERSION: ${APP_VERSION}
+            STAGE: ${STAGE}
+            VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+            VITE_AUTHORITY: ${VITE_AUTHORITY}
+            VITE_CLIENT_ID: ${VITE_CLIENT_ID}

@@ -1,0 +1,30 @@
+# Entorno PRODUCTIVO. Se levanta explicitamente con -f y su propio archivo de variables:
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+#
+# `name` lo aisla del stack de desarrollo: contenedores y red viven en un namespace
+# propio (videoclub-frontend-prod) para que no se pisen.
+name: videoclub-frontend-prod
+
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            # Clavado a la etapa runtime (Nginx liviano e inmutable)
+            target: runtime
+            # En una SPA, las variables VITE_* deben inyectarse en el build porque
+            # Vite las compila y fija estaticamente en el bundle JS
+            args:
+                VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+                VITE_AUTHORITY: ${VITE_AUTHORITY}
+                VITE_CLIENT_ID: ${VITE_CLIENT_ID}
+        # Auto-tagging: fija el nombre y version oficial de la imagen resultante
+        image: videoclub-frontend:${APP_VERSION}
+        container_name: videoclub-frontend-app-prod
+        # Sin volumes ni command: la imagen final esta sellada y Nginx arranca por defecto
+        ports:
+            - ${PORT}:${PORT}
+        environment:
+            # Puerto dinámico consumido por la plantilla de Nginx (/etc/nginx/templates)
+            PORT: ${PORT}
+        restart: always

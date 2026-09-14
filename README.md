@@ -37,35 +37,116 @@ Aplicación web de una sola página (Single Page Application - SPA) desarrollada
 
 ## ⚙️ Configuración de Entorno
 
-Crear o revisar el archivo `.env` en la raíz del proyecto:
+El proyecto se configura mediante archivos `.env` (desarrollo) y `.env.prod` (producción):
 
 ```env
-# URL del Realm en Keycloak
+APP_VERSION=1.0.0
+STAGE=dev
+PORT=5173
+
+# URL del Realm en Keycloak (alcanzable por el navegador)
 VITE_AUTHORITY=http://localhost:9091/realms/videoclub
 
 # Identificador del Cliente Público en Keycloak
 VITE_CLIENT_ID=videoclub-frontend
 
-# URL base del Backend Spring Boot
-VITE_API_BASE_URL=http://localhost:8080
+# API Gateway (Spring Cloud Gateway - punto de entrada unico del backend)
+VITE_API_BASE_URL=http://localhost:9500
+
+# Backend directo (opcional para pruebas sin Gateway)
+# VITE_API_BASE_URL=http://localhost:8080
 ```
+
+### 📋 Detalle de Variables
+
+| Variable | Propósito | Ejemplo Dev | Ejemplo Prod |
+| --- | --- | --- | --- |
+| `VITE_AUTHORITY` | URL del Realm OIDC en Keycloak. El navegador la utiliza para redirigir al login y validar el discovery (`/.well-known/openid-configuration`). | `http://localhost:9091/realms/videoclub` | `https://auth.midominio.com/realms/videoclub` |
+| `VITE_CLIENT_ID` | Identificador del cliente público OIDC configurado en Keycloak con PKCE. | `videoclub-frontend` | `videoclub-frontend` |
+| `VITE_API_BASE_URL` | URL base para las peticiones HTTP del frontend. Apunta al **Spring Cloud Gateway** (`:9500`), el cual rutea `/api/movies/**`, `/api/users/**`, `/api/socios/**` y `/api/agent/**`. | `http://localhost:9500` | `https://api.midominio.com` |
+| `PORT` | Puerto donde escucha el contenedor o servidor web. | `5173` (Vite) | `8080` (Nginx) |
+| `STAGE` | Identificador del entorno de ejecución. | `dev` | `prod` |
+| `APP_VERSION` | Etiqueta semántica utilizada para auto-taggear la imagen Docker final en producción (`videoclub-frontend:${APP_VERSION}`). | `1.0.0` | `1.0.0` |
 
 ---
 
-## 📦 Instalación y Ejecución
+## 🧠 Arquitectura de Red: ¿Por qué las URLs de una SPA NO son internas de Docker?
+
+> [!IMPORTANT]
+> **CONCEPTO FUNDAMENTAL: ¿Dónde se ejecuta realmente el código de una SPA?**
+>
+> En un backend (como Spring Boot), el código corre **dentro** del contenedor Docker. Por eso Spring Boot puede comunicarse con PostgreSQL o Keycloak usando nombres de servicio de Docker (`http://postgres_db:5432` o `http://video-keycloak:9091`) a través del DNS interno de Docker.
+>
+> En una **Single Page Application (React)** ocurre algo totalmente distinto:
+>
+> 1. El contenedor Docker (sea Vite en dev o Nginx en producción) es **únicamente un servidor de archivos estáticos** (HTML, JS, CSS).
+> 2. El navegador web del usuario descarga esos archivos y **ejecuta el código JavaScript en la máquina del cliente (host), FUERA de la red interna de Docker**.
+> 3. Cuando `react-oidc-context` o `fetch()` hacen una petición, la consulta sale del **navegador del usuario**, resolviendo DNS con la red del host, **no con la red de Docker**.
+>
+> Si configuraras `VITE_AUTHORITY=http://video-keycloak:9091` o `VITE_API_BASE_URL=http://videoclub-gateway-1:9500`, el navegador del usuario intentará resolver esos nombres en el DNS del host y fallará con `ERR_NAME_NOT_RESOLVED`.
+>
+> **Regla de Oro:** Todas las variables `VITE_*` deben apuntar a URLs **públicamente accesibles por el navegador del usuario** (en desarrollo local: `http://localhost:PUERTO_PUBLICADO`).
+
+---
+
+## 📦 Ejecución del Proyecto
+
+### Opción A: Con Docker Compose (Recomendado — Clase 6)
+
+El proyecto cuenta con un esquema multi-stage aislado para desarrollo y producción:
+
+#### 1. Entorno de Desarrollo (con Hot-Reload y Vite HMR)
+
+```bash
+# Construye la etapa 'dev' con Node 22, monta el codigo en vivo y levanta Vite en el puerto 5173
+docker compose up --build
+```
+
+Acceder en [http://localhost:5173](http://localhost:5173). Cualquier cambio en `src/` se reflejará instantáneamente sin reconstruir la imagen.
+
+#### 2. Entorno de Producción (Sellado con Nginx Alpine unprivileged)
+
+```bash
+# Construye la etapa 'runtime' con Nginx (74 MB), inyecta variables de build y levanta en el puerto 8080
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+```
+
+Acceder en [http://localhost:8080](http://localhost:8080). Incluye `try_files` en Nginx para soportar refresco en rutas de React Router y `HEALTHCHECK` activo.
+
+#### 3. Verificar estado de los contenedores
+
+```bash
+# Ver estado y healthcheck en produccion
+docker compose --env-file .env.prod -f docker-compose.prod.yml ps
+```
+
+#### 4. Detener los servicios
+
+```bash
+docker compose down                                                        # Detiene dev
+docker compose --env-file .env.prod -f docker-compose.prod.yml down        # Detiene prod
+```
+
+### Opción B: Ejecución Local Directa con Node.js
+
+Si preferís correr Node directamente en el host:
 
 1. **Instalar dependencias**:
+
    ```bash
    npm install
    ```
 
 2. **Iniciar servidor de desarrollo**:
+
    ```bash
    npm run dev
    ```
+
    La aplicación se abrirá en `http://localhost:5173/`.
 
-3. **Compilar para producción**:
+3. **Compilar para producción manualmente**:
+
    ```bash
    npm run build
    ```
@@ -78,7 +159,7 @@ VITE_API_BASE_URL=http://localhost:8080
 | --- | --- | --- | --- |
 | **`usuarioadmin`** | `usuarioadmin` | `ROLE_ADMIN`<br/>`movie-permission-*`<br/>`user-permission-*` | Acceso total: visualiza pestañas **Películas** y **Gestión Usuarios**. Puede crear películas y aprovisionar usuarios en Keycloak. |
 | **`usuariocliente`** | `usuariocliente` | `ROLE_CLIENT`<br/>`movie-permission-read` | Solo visualiza la pestaña **Películas**. La pestaña **Usuarios** no aparece en el menú; si intenta acceder por URL, la guarda bloquea el acceso con HTTP 403. |
-| **Auto-registro (Nuevo)** | A definir | `ROLE_CLIENT`<br/>`movie-permission-read`<br/>*2FA OTP obligatorio* | Al hacer click en "Registrarse" en Keycloak, se asigna automáticamente al grupo `cliente` y se le exige escanear el código QR con Google Authenticator / FreeOTP antes de entrar. |
+| **`Auto-registro (Nuevo)`** | A definir | `ROLE_CLIENT`<br/>`movie-permission-read`<br/>*2FA OTP obligatorio* | Al hacer click en "Registrarse" en Keycloak, se asigna automáticamente al grupo `cliente` y se le exige escanear el código QR con Google Authenticator / FreeOTP antes de entrar. |
 
 ---
 
