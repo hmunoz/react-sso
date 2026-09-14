@@ -7,6 +7,7 @@ export interface ChatResponse {
   agentsInvoked?: string[];
   toolsExecuted?: string[];
   toolsAvailable: string[];
+  fromMemory?: boolean;
 }
 
 export interface AgentHealthResponse {

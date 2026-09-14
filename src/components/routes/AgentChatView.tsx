@@ -11,6 +11,7 @@ interface ChatMessage {
   agentsInvoked?: string[];
   tools?: string[];
   toolsExecuted?: string[];
+  fromMemory?: boolean;
 }
 
 export const AgentChatView: React.FC = () => {
@@ -79,7 +80,8 @@ export const AgentChatView: React.FC = () => {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         agentsInvoked: res.agentsInvoked,
         tools: res.toolsAvailable,
-        toolsExecuted: res.toolsExecuted
+        toolsExecuted: res.toolsExecuted,
+        fromMemory: res.fromMemory
       };
 
       setMessages((prev) => [...prev, agentMsg]);
@@ -360,6 +362,34 @@ export const AgentChatView: React.FC = () => {
                         </code>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {!isUser && msg.fromMemory && (
+                  <div style={{
+                    marginTop: '0.65rem',
+                    padding: '0.4rem 0.65rem',
+                    backgroundColor: '#faf5ff',
+                    border: '1px solid #e9d8fd',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontSize: '0.75rem',
+                    color: '#553c9e'
+                  }}>
+                    <span>🧠 <strong>Origen:</strong></span>
+                    <span style={{
+                      backgroundColor: '#f3e8ff',
+                      border: '1px solid #d6bcfa',
+                      borderRadius: '4px',
+                      padding: '0.1rem 0.4rem',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      color: '#44337a'
+                    }}>
+                      Memoria conversacional
+                    </span>
                   </div>
                 )}
 
