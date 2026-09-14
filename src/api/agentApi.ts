@@ -38,3 +38,12 @@ export async function clearAgentMemory(token?: string, conversationId?: string):
 export async function getAgentHealth(): Promise<AgentHealthResponse> {
   return apiRequest<AgentHealthResponse>('/api/agent/health');
 }
+
+export interface AgentToolsResponse {
+  count: number;
+  tools: string[];
+}
+
+export async function getAgentTools(token?: string): Promise<AgentToolsResponse> {
+  return apiRequest<AgentToolsResponse>('/api/agent/tools', { method: 'GET' }, token);
+}

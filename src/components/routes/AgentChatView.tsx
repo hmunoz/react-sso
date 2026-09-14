@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { usePermissions } from '../../hooks/usePermissions';
-import { sendAgentPrompt, getAgentHealth, clearAgentMemory } from '../../api/agentApi';
+import { sendAgentPrompt, getAgentHealth, clearAgentMemory, getAgentTools } from '../../api/agentApi';
 
 interface ChatMessage {
   id: string;
@@ -19,16 +19,17 @@ export const AgentChatView: React.FC = () => {
   const { username, groups } = usePermissions();
   const displayName = auth.user?.profile?.name || username;
 
-  const createWelcomeMessage = (name: string): ChatMessage => ({
+  const createWelcomeMessage = (name: string, initialTools?: string[]): ChatMessage => ({
     id: `welcome-${Date.now()}`,
     sender: 'agent',
     text: `¡Hola ${name}! Soy el Asistente de Inteligencia Artificial del VideoClub UNRN.\n\nEstoy conectado mediante Model Context Protocol (MCP) a nuestro backend seguro con Keycloak. Puedo consultar el catálogo de películas y el padrón de socios según los permisos de tu cuenta.\n\n¿En qué te puedo ayudar hoy?`,
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    tools: ['get_movie', 'list_movies', 'search_movies', 'get_socio', 'list_socios']
+    tools: initialTools
   });
 
   const [conversationId, setConversationId] = useState<string>(() => `session-${Date.now()}`);
   const [messages, setMessages] = useState<ChatMessage[]>(() => [createWelcomeMessage(displayName)]);
+  const [availableTools, setAvailableTools] = useState<string[]>([]);
 
   const [inputPrompt, setInputPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -45,6 +46,26 @@ export const AgentChatView: React.FC = () => {
       })
       .catch(() => setAgentStatus('DOWN'));
   }, []);
+
+  useEffect(() => {
+    const token = auth.user?.access_token;
+    if (!token) return;
+
+    getAgentTools(token)
+      .then((res) => {
+        if (res?.tools && Array.isArray(res.tools)) {
+          setAvailableTools(res.tools);
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id.startsWith('welcome-') ? { ...msg, tools: res.tools } : msg
+            )
+          );
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not fetch agent tools dynamically', err);
+      });
+  }, [auth.user?.access_token]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,6 +105,10 @@ export const AgentChatView: React.FC = () => {
         fromMemory: res.fromMemory
       };
 
+      if (res.toolsAvailable && res.toolsAvailable.length > 0) {
+        setAvailableTools(res.toolsAvailable);
+      }
+
       setMessages((prev) => [...prev, agentMsg]);
     } catch (err: unknown) {
       const errText = err instanceof Error ? err.message : 'Error comunicando con el agente';
@@ -112,7 +137,7 @@ export const AgentChatView: React.FC = () => {
     }
     const newSession = `session-${Date.now()}`;
     setConversationId(newSession);
-    setMessages([createWelcomeMessage(displayName)]);
+    setMessages([createWelcomeMessage(displayName, availableTools)]);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
