@@ -2,6 +2,8 @@
 
 Aplicación web de una sola página (Single Page Application - SPA) desarrollada con **React 19**, **TypeScript** y **Vite**, diseñada para demostrar la integración de seguridad moderna con **OAuth 2.0 y OpenID Connect** contra **Keycloak** y un backend **Spring Boot Resource Server**.
 
+> 🧭 **Plataforma VideoClub:** Esta SPA es el cliente frontal de la plataforma. Para la visión integral de la arquitectura, topología de microservicios, seguridad SSO y decisiones de diseño transversales (ADRs), consultá la [Documentación de Arquitectura de la Plataforma](https://github.com/hmunoz/springboot-sso/tree/2026/docs).
+
 ---
 
 ## 🚀 Características Principales
