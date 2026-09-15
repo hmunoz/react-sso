@@ -3,7 +3,7 @@
 #
 # `name` lo aisla del stack de desarrollo: contenedores y red viven en un namespace
 # propio (videoclub-frontend-prod) para que no se pisen.
-name: videoclub-frontend-prod
+name: videoclub
 
 services:
     app:
