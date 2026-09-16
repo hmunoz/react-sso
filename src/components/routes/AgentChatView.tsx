@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { usePermissions } from '../../hooks/usePermissions';
 import { sendAgentPrompt, getAgentHealth, clearAgentMemory, getAgentTools, moviesFrom } from '../../api/agentApi';
@@ -34,6 +34,10 @@ export const AgentChatView: React.FC = () => {
   const [conversationId, setConversationId] = useState<string>(() => `session-${Date.now()}`);
   const [messages, setMessages] = useState<ChatMessage[]>(() => [createWelcomeMessage(displayName)]);
   const [availableTools, setAvailableTools] = useState<string[]>([]);
+  // The tool count is only meaningful together with how it was obtained. Without this,
+  // a failed refresh is indistinguishable from a successful one, and the UI keeps showing
+  // the last number it ever saw as though it were current.
+  const [toolsStatus, setToolsStatus] = useState<'loading' | 'ok' | 'error'>('loading');
 
   const [inputPrompt, setInputPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -51,25 +55,38 @@ export const AgentChatView: React.FC = () => {
       .catch(() => setAgentStatus('DOWN'));
   }, []);
 
-  useEffect(() => {
+  // GET /api/agent/tools is a live call: the agent runs an MCP tools/list against every
+  // backend on each request, so it fails outright when a server is unreachable. That makes it
+  // the only trustworthy source for this number -- and the reason a failure has to be shown,
+  // not logged.
+  const refreshTools = useCallback(async () => {
     const token = auth.user?.access_token;
     if (!token) return;
 
-    getAgentTools(token)
-      .then((res) => {
-        if (res?.tools && Array.isArray(res.tools)) {
-          setAvailableTools(res.tools);
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id.startsWith('welcome-') ? { ...msg, tools: res.tools } : msg
-            )
-          );
-        }
-      })
-      .catch((err) => {
-        console.warn('Could not fetch agent tools dynamically', err);
-      });
+    setToolsStatus('loading');
+    try {
+      const res = await getAgentTools(token);
+      const tools = Array.isArray(res?.tools) ? res.tools : [];
+      setAvailableTools(tools);
+      setToolsStatus('ok');
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id.startsWith('welcome-') ? { ...msg, tools } : msg))
+      );
+    } catch (err) {
+      console.warn('Could not fetch agent tools dynamically', err);
+      // Drop the previous count. Keeping it would leave the header claiming the tools are
+      // there while every query fails -- which is exactly what a stale agent image looked like.
+      setAvailableTools([]);
+      setToolsStatus('error');
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id.startsWith('welcome-') ? { ...msg, tools: undefined } : msg))
+      );
+    }
   }, [auth.user?.access_token]);
+
+  useEffect(() => {
+    void refreshTools();
+  }, [refreshTools]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -111,8 +128,12 @@ export const AgentChatView: React.FC = () => {
         movies: moviesFrom(res.artifacts)
       };
 
-      if (res.toolsAvailable && res.toolsAvailable.length > 0) {
+      // Each turn carries its own live toolsAvailable, so the header stays current without
+      // another round trip. An empty array is information too -- it means the agent reached
+      // the MCP servers and they offered nothing, which must not be masked by the old count.
+      if (Array.isArray(res.toolsAvailable)) {
         setAvailableTools(res.toolsAvailable);
+        setToolsStatus('ok');
       }
 
       setMessages((prev) => [...prev, agentMsg]);
@@ -127,6 +148,9 @@ export const AgentChatView: React.FC = () => {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, errorMsg]);
+      // The turn failed, so the last known count is no longer evidence of anything. Ask the
+      // live endpoint again rather than leaving a number nobody has verified on screen.
+      void refreshTools();
     } finally {
       setIsLoading(false);
     }
@@ -250,6 +274,51 @@ export const AgentChatView: React.FC = () => {
                 }} />
                 {agentStatus === 'UP' ? 'En línea (:9500 Gateway)' : 'Desconectado'}
               </span>
+              <span>•</span>
+              {/*
+                Live MCP indicator. It is deliberately able to say "no sé": the agent can answer
+                its own health check while being unable to reach a single MCP server, and a
+                counter that cannot express that failure reports success for a broken system.
+              */}
+              <span
+                style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                title={
+                  toolsStatus === 'ok' && availableTools.length > 0
+                    ? availableTools.join(', ')
+                    : 'GET /api/agent/tools consulta los servidores MCP en vivo'
+                }
+              >
+                <span style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor:
+                    toolsStatus === 'error' ? '#e53e3e'
+                      : toolsStatus === 'loading' ? '#a0aec0'
+                        : availableTools.length > 0 ? '#38a169' : '#dd6b20',
+                  display: 'inline-block'
+                }} />
+                {toolsStatus === 'loading' && 'MCP: consultando…'}
+                {toolsStatus === 'error' && 'MCP: sin conexión'}
+                {toolsStatus === 'ok' && `MCP: ${availableTools.length} tools`}
+              </span>
+              {toolsStatus === 'error' && (
+                <button
+                  type="button"
+                  onClick={() => void refreshTools()}
+                  style={{
+                    border: '1px solid #e2e8f0',
+                    background: 'transparent',
+                    borderRadius: '4px',
+                    padding: '0 0.35rem',
+                    fontSize: '0.7rem',
+                    color: '#718096',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Reintentar
+                </button>
+              )}
             </div>
           </div>
         </div>
