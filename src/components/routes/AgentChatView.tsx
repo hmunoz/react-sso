@@ -180,7 +180,14 @@ export const AgentChatView: React.FC = () => {
   const quickPrompts = [
     '¿Qué películas tienen disponibles actualmente?',
     '¿Tienen alguna película de Matrix en el catálogo?',
-    '¿Quiénes son los socios registrados en el videoclub?'
+    '¿Quiénes son los socios registrados en el videoclub?',
+    // Answered from the MCP resources injected into the catalog sub-agent's system prompt
+    // (catalog://genres and catalog://procedures/movie-creation), not from a tool call.
+    '¿Qué géneros acepta el catálogo?',
+    '¿Qué datos necesito para dar de alta una película?',
+    // The creation procedure requires search_movies before create_movie; Matrix already
+    // exists, so this demonstrates the duplicate check without creating anything.
+    'Dá de alta la película Matrix'
   ];
 
   const formatText = (text: string) => {
