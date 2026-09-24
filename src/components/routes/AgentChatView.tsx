@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { usePermissions } from '../../hooks/usePermissions';
-import { sendAgentPrompt, getAgentHealth, clearAgentMemory, getAgentTools, moviesFrom } from '../../api/agentApi';
+import { sendAgentPrompt, streamAgentPrompt, getAgentHealth, clearAgentMemory, getAgentTools, moviesFrom } from '../../api/agentApi';
 import { MovieGrid } from '../chat/MovieGrid';
 import { type Movie } from '../../api/moviesApi';
 
@@ -16,6 +16,8 @@ interface ChatMessage {
   toolsDenied?: string[];
   fromMemory?: boolean;
   movies?: Movie[];
+  isStreaming?: boolean;
+  statusMessage?: string;
 }
 
 export const AgentChatView: React.FC = () => {
@@ -103,54 +105,148 @@ export const AgentChatView: React.FC = () => {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const agentMsgId = `agent-${Date.now()}`;
+    const initialAgentMsg: ChatMessage = {
+      id: agentMsgId,
+      sender: 'agent',
+      text: '',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isStreaming: true,
+      statusMessage: 'Iniciando asistente...',
+      tools: availableTools
+    };
+
+    setMessages((prev) => [...prev, userMsg, initialAgentMsg]);
     setInputPrompt('');
     setIsLoading(true);
     setErrorMessage(null);
 
+    const token = auth.user?.access_token;
+    let hasStreamedDelta = false;
+
     try {
-      const token = auth.user?.access_token;
-      const res = await sendAgentPrompt(prompt, token, conversationId);
-      if (res.conversationId && res.conversationId !== conversationId) {
-        setConversationId(res.conversationId);
+      await streamAgentPrompt(
+        prompt,
+        token,
+        conversationId,
+        {
+          onStatus: (status) => {
+            const msg = status.message || (status.agent ? `Consultando ${status.agent}...` : 'Procesando...');
+            setMessages((prev) =>
+              prev.map((m) => (m.id === agentMsgId ? { ...m, statusMessage: msg } : m))
+            );
+          },
+          onDelta: (delta) => {
+            hasStreamedDelta = true;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === agentMsgId ? { ...m, text: m.text + delta } : m))
+            );
+          },
+          onArtifact: (artifacts) => {
+            const newMovies = moviesFrom(artifacts);
+            if (newMovies.length > 0) {
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== agentMsgId) return m;
+                  const existingIds = new Set((m.movies || []).map((x) => x.id));
+                  const filtered = newMovies.filter((x) => !existingIds.has(x.id));
+                  return { ...m, movies: [...(m.movies || []), ...filtered] };
+                })
+              );
+            }
+          },
+          onDone: (doneData) => {
+            if (doneData.conversationId && doneData.conversationId !== conversationId) {
+              setConversationId(doneData.conversationId);
+            }
+            if (Array.isArray(doneData.toolsAvailable)) {
+              setAvailableTools(doneData.toolsAvailable);
+              setToolsStatus('ok');
+            }
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === agentMsgId
+                  ? {
+                      ...m,
+                      isStreaming: false,
+                      statusMessage: undefined,
+                      agentsInvoked: doneData.agentsInvoked,
+                      toolsExecuted: doneData.toolsExecuted,
+                      toolsDenied: doneData.toolsDenied,
+                      fromMemory: doneData.fromMemory
+                    }
+                  : m
+              )
+            );
+          },
+          onError: (err) => {
+            if (!hasStreamedDelta) throw err;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === agentMsgId
+                  ? {
+                      ...m,
+                      isStreaming: false,
+                      statusMessage: undefined,
+                      text: m.text + `\n\n⚠️ [Interrupción de conexión: ${err.message}]`
+                    }
+                  : m
+              )
+            );
+          }
+        }
+      );
+    } catch (streamErr: unknown) {
+      if (!hasStreamedDelta) {
+        console.warn('SSE stream failed before first token; falling back to blocking chat endpoint', streamErr);
+        try {
+          const res = await sendAgentPrompt(prompt, token, conversationId);
+          if (res.conversationId && res.conversationId !== conversationId) {
+            setConversationId(res.conversationId);
+          }
+          if (Array.isArray(res.toolsAvailable)) {
+            setAvailableTools(res.toolsAvailable);
+            setToolsStatus('ok');
+          }
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === agentMsgId
+                ? {
+                    ...m,
+                    isStreaming: false,
+                    statusMessage: undefined,
+                    text: res.response,
+                    agentsInvoked: res.agentsInvoked,
+                    tools: res.toolsAvailable,
+                    toolsExecuted: res.toolsExecuted,
+                    toolsDenied: res.toolsDenied,
+                    fromMemory: res.fromMemory,
+                    movies: moviesFrom(res.artifacts)
+                  }
+                : m
+            )
+          );
+        } catch (fallbackErr: unknown) {
+          const errText = fallbackErr instanceof Error ? fallbackErr.message : 'Error comunicando con el agente';
+          setErrorMessage(errText);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === agentMsgId
+                ? {
+                    ...m,
+                    isStreaming: false,
+                    statusMessage: undefined,
+                    text: `⚠️ Ocurrió un error al procesar tu consulta: ${errText}`
+                  }
+                : m
+            )
+          );
+          void refreshTools();
+        }
+      } else {
+        const errText = streamErr instanceof Error ? streamErr.message : 'Error en stream';
+        setErrorMessage(errText);
       }
-
-      const agentMsg: ChatMessage = {
-        id: `agent-${Date.now()}`,
-        sender: 'agent',
-        text: res.response,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        agentsInvoked: res.agentsInvoked,
-        tools: res.toolsAvailable,
-        toolsExecuted: res.toolsExecuted,
-        toolsDenied: res.toolsDenied,
-        fromMemory: res.fromMemory,
-        movies: moviesFrom(res.artifacts)
-      };
-
-      // Each turn carries its own live toolsAvailable, so the header stays current without
-      // another round trip. An empty array is information too -- it means the agent reached
-      // the MCP servers and they offered nothing, which must not be masked by the old count.
-      if (Array.isArray(res.toolsAvailable)) {
-        setAvailableTools(res.toolsAvailable);
-        setToolsStatus('ok');
-      }
-
-      setMessages((prev) => [...prev, agentMsg]);
-    } catch (err: unknown) {
-      const errText = err instanceof Error ? err.message : 'Error comunicando con el agente';
-      setErrorMessage(errText);
-
-      const errorMsg: ChatMessage = {
-        id: `err-${Date.now()}`,
-        sender: 'agent',
-        text: `⚠️ Ocurrió un error al procesar tu consulta: ${errText}`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages((prev) => [...prev, errorMsg]);
-      // The turn failed, so the last known count is no longer evidence of anything. Ask the
-      // live endpoint again rather than leaving a number nobody has verified on screen.
-      void refreshTools();
     } finally {
       setIsLoading(false);
     }
@@ -238,6 +334,16 @@ export const AgentChatView: React.FC = () => {
 
   return (
     <div style={{ maxWidth: '950px', margin: '0 auto', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 160px)' }}>
+      <style>{`
+        @keyframes cursorBlink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
+        @keyframes spinLoader {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
       {/* Header card */}
       <div style={{
         backgroundColor: '#ffffff',
@@ -441,7 +547,43 @@ export const AgentChatView: React.FC = () => {
                 lineHeight: 1.5,
                 fontSize: '0.92rem'
               }}>
-                {cleanedText && <div>{formatText(cleanedText)}</div>}
+                {!isUser && msg.isStreaming && msg.statusMessage && (
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    marginBottom: cleanedText ? '0.6rem' : '0',
+                    padding: '0.25rem 0.55rem',
+                    backgroundColor: '#ebf8ff',
+                    border: '1px solid #bee3f8',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    color: '#2b6cb0',
+                    fontWeight: 500
+                  }}>
+                    <span style={{ display: 'inline-block', animation: 'spinLoader 1.5s linear infinite' }}>⏳</span>
+                    <span>{msg.statusMessage}</span>
+                  </div>
+                )}
+
+                {cleanedText ? (
+                  <div>
+                    {formatText(cleanedText)}
+                    {msg.isStreaming && (
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          width: '6px',
+                          height: '14px',
+                          backgroundColor: '#3182ce',
+                          marginLeft: '3px',
+                          verticalAlign: 'text-bottom',
+                          animation: 'cursorBlink 0.9s steps(1) infinite'
+                        }}
+                      />
+                    )}
+                  </div>
+                ) : null}
 
                 {hasMovies && movies && (
                   <MovieGrid movies={movies} />
@@ -607,23 +749,6 @@ export const AgentChatView: React.FC = () => {
             </div>
           );
         })}
-
-        {isLoading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#718096', fontSize: '0.85rem' }}>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              backgroundColor: '#e2e8f0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              ⏳
-            </div>
-            <span>El Asistente está analizando tu consulta y ejecutando herramientas MCP...</span>
-          </div>
-        )}
 
         <div ref={messagesEndRef} />
       </div>
